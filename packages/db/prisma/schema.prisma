@@ -1,0 +1,95 @@
+/// 数据源配置：使用本地或云端 PostgreSQL
+/// 请在 .env 中配置 DATABASE_URL
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// 生成 Prisma Client（TypeScript）
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+/// 用户表：存储系统中的账户信息
+model User {
+  /// 主键 ID
+  id          String   @id @default(uuid())
+  /// 用户邮箱（唯一）
+  email       String   @unique
+  /// 用户显示名称
+  name        String?
+  /// 创建时间
+  createdAt   DateTime @default(now())
+  /// 关联第三方 token
+  tokens      Token[]
+  /// 用户的目标列表
+  goals       Goal[]
+  /// 用户的每日简报
+  briefings   Briefing[]
+}
+
+/// 第三方认证 Token 表：加密存储 access / refresh token
+model Token {
+  id          String   @id @default(uuid())
+  /// 所属用户 ID（外键）
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  /// OAuth 提供商，例如 google、microsoft
+  provider    String
+  /// 加密后的 accessToken
+  accessToken String
+  /// 加密后的 refreshToken
+  refreshToken String?
+  /// 过期时间（可为空，表示长期有效）
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+}
+
+/// 目标（Goal）表：支持自引用父子关系
+model Goal {
+  id          String   @id @default(uuid())
+  /// 所属用户 ID
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  /// 目标标题
+  title       String
+  /// 目标描述
+  description String?
+  /// 状态：进行中 / 已完成 / 搁置 等枚举值（后续可改为 enum）
+  status      String   @default("active")
+  /// 自引用父目标 ID，可为空
+  parentId    String?
+  /// 父目标关系（NoAction 防止误删级联）
+  parent      Goal?    @relation("GoalToSubGoals", fields: [parentId], references: [id], onDelete: NoAction)
+  /// 子目标集合
+  children    Goal[]   @relation("GoalToSubGoals")
+  createdAt   DateTime @default(now())
+}
+
+/// 每日简报（Briefing）表
+model Briefing {
+  id        String    @id @default(uuid())
+  /// 所属用户 ID
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  /// 简报对应的日期（00:00 时间）
+  date      DateTime  @unique
+  /// 生成时间
+  createdAt DateTime  @default(now())
+  /// 关联洞察列表
+  insights  Insight[]
+}
+
+/// 洞察（Insight）表：存储 AI 生成的关键信息
+model Insight {
+  id          String    @id @default(uuid())
+  /// 所属简报 ID
+  briefingId  String
+  briefing    Briefing  @relation(fields: [briefingId], references: [id])
+  /// 洞察标题
+  title       String
+  /// 洞察正文（Markdown 或纯文本）
+  content     String
+  createdAt   DateTime  @default(now())
+} 
